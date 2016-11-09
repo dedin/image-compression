@@ -1,7 +1,6 @@
-import random
-import bitstring
 import os
 from bitstring import BitArray
+
 
 class Node(object):
     left_child = None
@@ -9,7 +8,7 @@ class Node(object):
     node_freq = None
     node_value = None
 
-    def __init__(self, left, right,  value, freq):
+    def __init__(self, left, right, value, freq):
         self.left_child = left
         self.right_child = right
         self.node_value = value
@@ -17,7 +16,6 @@ class Node(object):
 
     def __cmp__(self, other_node):
         return cmp(self.node_freq, other_node.node_freq)
-
 
 
 def encode_driver(pixel_array, width, height):
@@ -81,15 +79,13 @@ def encode_bits_to_file(pixel_list, huffman_codes_dict, width, height):
                     if ch == '1':
                         temp = 1 << temppos
                         tempbyte = temp | tempbyte
-                    temppos +=1
+                    temppos += 1
                     if temppos == 8:
                         temppos = 0
                         out_file.write(chr(tempbyte))
                         tempbyte = 0
         if temppos > 0:
             out_file.write(chr(tempbyte))
-
-
 
 
 def decode_driver(encoded_str, root, height, width):
@@ -139,52 +135,6 @@ def decode(encoded_str, root):
     return l
 
 
-
-
 def print_2d_array(array):
     for row in array:
         print row
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
