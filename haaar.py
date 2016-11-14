@@ -25,51 +25,113 @@ def main():
     padded_pixel_list, new_width, new_height = pad_dimensions(pixel_list, width, height)
     # print "NEW WIDTH AND HEIGHT ARE {} AND {}".format(new_width, new_height)              #USE AN ASSERT STMT INSTEAD
     # DO HAAR TRANSFORM
-    transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
+
+    l = [[20,20,30,40],[30,20,30,40],[40,30,20,30],[30,20,10,40]]
+    w = 4
+    h = 4
+    transform_coefficient = haar_transform(l, w,h)
+
+    # transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
     pretty_print(transform_coefficient, "PIXEL VALUES AFTER HAAR GOING TO QUANTIZATION")
+
+
+
     # DO QUANTIZATION
-    quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
-    pretty_print(quantized_coefficient, "PIXEL VALUES THAT WILL BE ENCODED USING HUFFMAN")
-    # DO ENCODING
-    root = variable_length_encode(quantized_coefficient, new_width, new_height)
-
-    # START DECODING
-    # HUFFMAN DECODE
-    with open("output.bmp", "r") as enc_file:
-        encoded_str = enc_file.read().replace("\n", "")
-        print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
-        pix_vals_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
-
-    pretty_print(pix_vals_to_dequant, "PIXEL VALUES AFTER HUFFMAN DECODING WAS DONE")
-
-    # DEQUANTIZE
-    de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
+    # quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
+    # pretty_print(quantized_coefficient, "PIXEL VALUES THAT WILL BE ENCODED USING HUFFMAN")
+    # # DO ENCODING
+    # root = variable_length_encode(quantized_coefficient, new_width, new_height)
+    #
+    # # START DECODING
+    # # HUFFMAN DECODE
+    # with open("output.bmp", "r") as enc_file:
+    #     encoded_str = enc_file.read().replace("\n", "")
+    #     print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
+    #     pix_vals_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
+    #
+    # pretty_print(pix_vals_to_dequant, "PIXEL VALUES AFTER HUFFMAN DECODING WAS DONE")
+    #
+    # # DEQUANTIZE
+    # de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
 
     # UNDO HAAR TRANSFORM
+    decoded = decode_haar_transform(transform_coefficient, w, h)
+    # pretty_print(decoded, "AFTER ALL DECODING")
 
 
-def haar_transform(pixelList, width, height):
+
+def haar_transform(pixel_list, width, height):
     list_length = width * height
     print "LIST LENGTH IS ", list_length
+
+    pretty_print(pixel_list, "beginning list")
     row_transformed_pixel_list = []
-    # wavelet tranform for each row
-    for row in pixelList:
+    # wavelet transform for each row
+    for row in pixel_list:
         row_wavelet = wavelet_transform(row)
         row_transformed_pixel_list.append(row_wavelet)
+    pretty_print(row_transformed_pixel_list, "After row tranform")
     # pretty_print(row_transformed_pixel_list)
     # next do wavelet transform for each column
     new_arr = np.array(row_transformed_pixel_list)
+    pretty_print(new_arr, "FLIPPED ARRAY")
     column_transformed = []
     for i in range(0, width):
         column_wavelet = wavelet_transform(new_arr[:, i])
         column_transformed.append(column_wavelet)
+    pretty_print(column_transformed, "After column transform")
     # reshape the pixel array
     column_transformed_pixel_list = np.dstack(column_transformed)
+    pretty_print(column_transformed_pixel_list[0], "RETURNING")
     return column_transformed_pixel_list[0]
 
 
-def decode_haar_transform():
-    pass
+def decode_haar_transform(coded_list, width, height):
+    pretty_print(coded_list, "WHAT I GOT")
+    col_re_arranged_to_row = np.array(coded_list)
+    array_2 = []
+    for i in range(0, width):
+        decoded_row = de_code(col_re_arranged_to_row[:, i])
+        array_2.append(decoded_row)
+    pretty_print(array_2, "ON TO 2")
+    row_re_arranged_to_col = np.dstack(array_2)
+    pretty_print(row_re_arranged_to_col[0], "ON TO 3")
+    final_decode = []
+    for i in range(0, width):
+        final_decode.append(de_code(row_re_arranged_to_col[0][i]))
+    pretty_print(final_decode, "AFTER ALL")
+    return final_decode
+
+
+
+def de_code(decoded_row):
+    """"Converts from a row of one average and multiple differences to the original values
+    Parameters
+    ----------
+       :param decoded_row:
+       A list containing an average followed by a list of differences.  The total size must be a power of 2.
+    """
+    average_list = []
+    width = len(decoded_row)
+    diff = decoded_row[1] / 2
+    average_list.append(decoded_row[0] + diff)
+    average_list.append(decoded_row[0] - diff)
+    diff_list = list(decoded_row[2:])
+    while len(average_list) < width:
+        index = 0
+        average_list = d_code(average_list, diff_list, (2**index) - 1)
+        index += 1
+    return average_list
+
+
+def d_code(average_list, diff_list, diff_list_index):
+    avg_list = []
+    for avg in average_list:
+        diff_avg = diff_list[diff_list_index] / 2
+        avg_list.append(avg + diff_avg)
+        avg_list.append(avg - diff_avg)
+        diff_list_index += 1
+    return avg_list
 
 
 def quantize(pixelList, width, height):
@@ -105,13 +167,29 @@ def wavelet_transform(row):
     assert (len(difference_list) == len(row))
     return difference_list
 
+#
+# def haar_average(pixelList, diffList):
+#     avg_list = []
+#     for i in range(0, len(pixelList), 2):
+#         avg_list.append((pixelList[i] + pixelList[i + 1]) / 2)
+#         diffList.append((pixelList[i] - pixelList[i + 1])) # insert instead
+#     return avg_list, diffList
 
-def haar_average(pixelList, diffList):
+
+
+def haar_average(pixel_list, diff_list):
     avg_list = []
-    for i in range(0, len(pixelList), 2):
-        avg_list.append((pixelList[i] + pixelList[i + 1]) / 2)
-        diffList.append((pixelList[i] - pixelList[i + 1]))
-    return avg_list, diffList
+    list_length = len(pixel_list)
+    j = 1
+    for average_index in range(0, len(pixel_list), 2):
+        avg_list.append((pixel_list[average_index] + pixel_list[average_index + 1]) / 2)
+        difference_index = list_length - (2*j)
+        diff_list.insert(0, (pixel_list[difference_index] - pixel_list[difference_index + 1]))
+        j += 1
+    return avg_list, diff_list
+
+
+
 
 
 def find_next_power(num):
