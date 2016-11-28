@@ -8,7 +8,10 @@ import math
 def main():
     picture = Image.open("smallbox.bmp")  # opening and reading the image header file, no access to image data yet
     pixels = picture.load()  # pixels is the access object(a 2d array) for the image
-    coord = picture.size
+    coord = picture.
+
+
+    r
     print "coord is ", coord
     print pixels[0, 0]  # No transparency values
     width, height = coord[0], coord[1]
