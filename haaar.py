@@ -3,60 +3,102 @@ from PIL import Image
 from hufman import encode_driver, decode_driver
 import numpy as np
 import math
-import os
+
+
+
+# TODO
+# Everything works fine. clean up comments and make variable names better, push to git hub
+# Show image from pixel values
+#put try catch around file opens
+
+
+def rgb_to_num(rgb_value):
+    red = rgb_value[0]
+    green = rgb_value[1]
+    blue = rgb_value[2]
+    rgb_num = (red << 16) + (green << 8) + blue
+    return rgb_num
+
+def num_to_rgb(rgb_num):
+    red = (int(rgb_num) >> 16) & 255
+    green = (int(rgb_num) >> 8) & 255
+    blue = int(rgb_num) & 255
+    return red, green, blue
+
 
 
 def main():
-    picture = Image.open("smallbox.bmp")  # opening and reading the image header file, no access to image data yet
-    pixels = picture.load()  # pixels is the access object(a 2d array) for the image
+    picture = Image.open("smallbox.bmp")
+    pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
-    print pixels[0, 0]  # No transparency values
-    width, height = coord[0], coord[1]
+    print pixels[6, 6]
+    width, height = coord[0], coord[1]                  #check this again!!!!!!! the height and width
     pixel_list = []
     # convert pixels tuple values and copy them into a 2d array
     for i in xrange(0, height):
         pixel_list.append([])
         for j in xrange(0, width):
             value = pixels[j, i]
-            pixel_list[i].append((value[0] * 2 ^ 16) + (value[1] * 2 ^ 8) + (value[2]))
+            pixel_list[i].append(rgb_to_num(value))
+
+
+    # pretty_print(pixel_list, "at the beginning")
 
     # PAD LIST IF NECESSARY
     padded_pixel_list, new_width, new_height = pad_dimensions(pixel_list, width, height)
     # print "NEW WIDTH AND HEIGHT ARE {} AND {}".format(new_width, new_height)              #USE AN ASSERT STMT INSTEAD
+
     # DO HAAR TRANSFORM
-
-    l = [[20,20,30,40],[30,20,30,40],[40,30,20,30],[30,20,10,40]]
-    w = 4
-    h = 4
-    transform_coefficient = haar_transform(l, w,h)
-
-    # transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
-    pretty_print(transform_coefficient, "PIXEL VALUES AFTER HAAR GOING TO QUANTIZATION")
+    transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
+    # pretty_print(transform_coefficient, "PIXEL VALUES AFTER HAAR GOING TO QUANTIZATION")
 
 
 
     # DO QUANTIZATION
-    # quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
+
+    quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
     # pretty_print(quantized_coefficient, "PIXEL VALUES THAT WILL BE ENCODED USING HUFFMAN")
-    # # DO ENCODING
-    # root = variable_length_encode(quantized_coefficient, new_width, new_height)
-    #
-    # # START DECODING
-    # # HUFFMAN DECODE
-    # with open("output.bmp", "r") as enc_file:
-    #     encoded_str = enc_file.read().replace("\n", "")
-    #     print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
-    #     pix_vals_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
-    #
+
+
+    # DO ENCODING
+    root = variable_length_encode(quantized_coefficient, new_width, new_height)
+
+
+    # START DECODING
+
+    # HUFFMAN DECODE
+    with open("encodeoutput.bmp", "r") as enc_file:
+        encoded_str = enc_file.read()
+        print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
+        pix_vals_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
+
     # pretty_print(pix_vals_to_dequant, "PIXEL VALUES AFTER HUFFMAN DECODING WAS DONE")
-    #
-    # # DEQUANTIZE
-    # de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
+
+
+
+    # DEQUANTIZE
+    de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
+    # pretty_print(de_haar, "AFTER DEQUANTIZE")
+
 
     # UNDO HAAR TRANSFORM
-    decoded = decode_haar_transform(transform_coefficient, w, h)
-    # pretty_print(decoded, "AFTER ALL DECODING")
+    decoded_pixel_values = decode_haar_transform(de_haar, new_width, new_height)
+    # pretty_print(decoded_pixel_values, "AFTER ALL DECODING")
+
+    # GET RGB VALUES BACK FROM INTEGERS
+    rgb_list = []
+    for i in range(new_height):
+        rgb_list.append([])
+        for j in range(new_width):
+            rgb_list[i].append(num_to_rgb(decoded_pixel_values[i][j]))
+    # pretty_print(rgb_array, "")
+
+    # MAKE IMAGE FILE
+    img_array = np.array(rgb_list, np.uint8)
+    pilimage = Image.fromarray(img_array)
+    pilimage.save('out.bmp')
+
 
 
 
@@ -70,56 +112,60 @@ def haar_transform(pixel_list, width, height):
     for row in pixel_list:
         row_wavelet = wavelet_transform(row)
         row_transformed_pixel_list.append(row_wavelet)
-    pretty_print(row_transformed_pixel_list, "After row tranform")
-    # pretty_print(row_transformed_pixel_list)
+    #pretty_print(row_transformed_pixel_list, "After row tranform")
     # next do wavelet transform for each column
     new_arr = np.array(row_transformed_pixel_list)
-    pretty_print(new_arr, "FLIPPED ARRAY")
+    # pretty_print(new_arr, "FLIPPED ARRAY")
     column_transformed = []
     for i in range(0, width):
+        # print "ENCODING  AND I SHOULD GET", new_arr[:, i]
         column_wavelet = wavelet_transform(new_arr[:, i])
+        # print "AFTER " ,column_wavelet
+        # print "\n"
         column_transformed.append(column_wavelet)
-    pretty_print(column_transformed, "After column transform")
+    #pretty_print(column_transformed, "After column transform BEFORE REARRANGE")
     # reshape the pixel array
     column_transformed_pixel_list = np.dstack(column_transformed)
-    pretty_print(column_transformed_pixel_list[0], "RETURNING")
+    #pretty_print(column_transformed_pixel_list[0], "REARRANGING AND RETURNING")
     return column_transformed_pixel_list[0]
 
 
 def decode_haar_transform(coded_list, width, height):
-    pretty_print(coded_list, "WHAT I GOT")
+    #pretty_print(coded_list, "WHAT I GOT")
     col_re_arranged_to_row = np.array(coded_list)
     array_2 = []
     for i in range(0, width):
+        #print "going to decode ", col_re_arranged_to_row[:, i]
         decoded_row = de_code(col_re_arranged_to_row[:, i])
+        #print "Got back ", decoded_row
         array_2.append(decoded_row)
-    pretty_print(array_2, "ON TO 2")
     row_re_arranged_to_col = np.dstack(array_2)
-    pretty_print(row_re_arranged_to_col[0], "ON TO 3")
     final_decode = []
-    for i in range(0, width):
-        final_decode.append(de_code(row_re_arranged_to_col[0][i]))
-    pretty_print(final_decode, "AFTER ALL")
+    #print "\n" * 3
+    for row in row_re_arranged_to_col[0]:
+        #print "THIS IS THE ROW TO DECODE ", row
+        final_decode.append(de_code(row))
     return final_decode
 
 
 
-def de_code(decoded_row):
+def de_code(row_to_decode):
     """"Converts from a row of one average and multiple differences to the original values
     Parameters
     ----------
-       :param decoded_row:
+       :param row_to_decode:
        A list containing an average followed by a list of differences.  The total size must be a power of 2.
     """
     average_list = []
-    width = len(decoded_row)
-    diff = decoded_row[1] / 2
-    average_list.append(decoded_row[0] + diff)
-    average_list.append(decoded_row[0] - diff)
-    diff_list = list(decoded_row[2:])
+    width = len(row_to_decode)
+    diff = row_to_decode[1] / 2
+    average_list.append(row_to_decode[0] + diff)
+    average_list.append(row_to_decode[0] - diff)
+    diff_list = list(row_to_decode[2:])
+    index = 0
     while len(average_list) < width:
-        index = 0
-        average_list = d_code(average_list, diff_list, (2**index) - 1)
+        diff_list_index = (2 ** index) - 1
+        average_list, diff_list = d_code(average_list, diff_list, diff_list_index)
         index += 1
     return average_list
 
@@ -127,29 +173,32 @@ def de_code(decoded_row):
 def d_code(average_list, diff_list, diff_list_index):
     avg_list = []
     for avg in average_list:
-        diff_avg = diff_list[diff_list_index] / 2
+        # diff_avg = diff_list[diff_list_index] / 2
+        diff_avg = diff_list[0] / 2
         avg_list.append(avg + diff_avg)
         avg_list.append(avg - diff_avg)
-        diff_list_index += 1
-    return avg_list
+        # diff_list_index += 1
+        diff_list.pop(0)
+    return avg_list, diff_list
 
+con = 2
 
 def quantize(pixelList, width, height):
     for i in range(0, height):
         for j in range(0, width):
             if pixelList[i][j] < 0:
-                pixelList[i][j] = (pixelList[i][j] // 100) + 1
+                pixelList[i][j] = (pixelList[i][j] // con) + 1
             elif pixelList[i][j] == 0:
                 pixelList[i][j] = pixelList[i][j]
             else:
-                pixelList[i][j] = (pixelList[i][j] // 100)
+                pixelList[i][j] = (pixelList[i][j] // con)
     return pixelList
 
 
 def decode_quantization(pixelList, width, height):
     for i in range(height):
         for j in range(width):
-            pixelList[i][j] = pixelList[i][j] * 100
+            pixelList[i][j] = pixelList[i][j] * con
     return pixelList
 
 
