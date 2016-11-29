@@ -95,7 +95,7 @@ def make_huffman_tree(frequency_list):
 
 
 def get_huffman_codes(node, dict, curr_bits):
-    if node.node_value == None:
+    if node.node_value is None:
         get_huffman_codes(node.left_child, dict, curr_bits + "0")
         get_huffman_codes(node.right_child, dict, curr_bits + "1")
     else:
