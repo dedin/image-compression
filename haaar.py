@@ -21,7 +21,7 @@ def main():
     width, height = coord[0], coord[1]  # check this again!!!!!!! the height and width
     color_list = []
 
-    # convert pixels tuple values and copy them into a 2d array
+    # convert each color pixels, copy them into a 2d array, haar transform and quantize
     for x in xrange(0, pixel_size):
         pixel_list = []
         for i in xrange(0, height):
@@ -32,10 +32,28 @@ def main():
         quantized_pix = process_col(pixel_list, width, height)
         color_list.append(quantized_pix)
 
-    # convert values into one for each pixel
+    # convert values into one for each pixel and encode
     assert len(color_list) is 3
-    for i in range(0, 3):
-        pass
+    new_height = len(color_list[0])
+    new_width = len(color_list[0][0])
+    # pretty_print(color_list[0], "example")
+    val_to_encode = []
+    rgb_list = []
+    for i in range(0, new_height):
+        val_to_encode.append([])
+        for j in range(0, new_width):
+            rgb_list.append(color_list[0][i][j])
+            rgb_list.append(color_list[1][i][j])
+            rgb_list.append(color_list[2][i][j])
+            val_to_encode[i].append(rgb_to_num(rgb_list))
+            rgb_list = []
+    # pretty_print(val_to_encode, "After quantization and layering")
+
+    root = variable_length_encode(val_to_encode, new_width, new_height)
+
+    # DECODE
+    decode_file(root, new_width, new_height)
+
 
 
 
@@ -55,31 +73,72 @@ def process_col(pixel_list, width, height):
 
     return quantized_coefficient
 
-    # # HUFFMAN ENCODE
-    # root = variable_length_encode(quantized_coefficient, new_width, new_height)
 
-    # # HUFFMAN DECODE
-    # with open("encodeoutput.bmp", "r") as enc_file:
-    #     encoded_str = enc_file.read()
-    #     print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
-    #     pix_val_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
-    #
-    # # DE QUANTIZE
-    # de_haar = decode_quantization(pix_val_to_dequant, new_width, new_height)
-    #
-    # # HAAR TRANSFORM DECODE
-    # decoded_pixel_values = decode_haar_transform(de_haar, new_width, new_height)
-    #
-    # # SHOW IMAGE FROM DECODED INTEGERS
-    # rgb_list = []
-    # for i in range(new_height):
-    #     rgb_list.append([])
-    #     for j in range(new_width):
-    #         rgb_list[i].append(num_to_rgb(decoded_pixel_values[i][j]))
-    # img_array = np.array(rgb_list, np.uint8)
-    # pil_image = Image.fromarray(img_array)
-    # pil_image.save('out.bmp')
+def decode_file(root, new_width, new_height):
+    with open("encodeoutput.bmp", "r") as enc_file:
+        encoded_str = enc_file.read()
+        print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
+        pix_val_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
 
+    red_list, green_list, blue_list = make_lists(pix_val_to_dequant)
+
+    new_red_list = dequant_dehaar(red_list)
+    new_green_list = dequant_dehaar(green_list)
+    new_blue_list = dequant_dehaar(blue_list)
+
+
+    rgb_list = make_pixel_arr(new_red_list, new_green_list, new_blue_list)
+
+    # SHOW IMAGE
+    img_array = np.array(rgb_list, np.uint8)
+    pil_image = Image.fromarray(img_array)
+    pil_image.save('out.bmp')
+
+
+def make_pixel_arr(red_list, green_list, blue_list):
+    height = len(red_list)
+    width = len(red_list[0])
+    rgb_list = []
+    for i in range(height):
+        rgb_list.append([])
+        for j in range(width):
+            rgb_list[i].append(make_set(red_list, green_list, blue_list, i, j))
+    return rgb_list
+
+
+def make_set(red_list, green_list, blue_list, i, j):
+    red = red_list[i][j]
+    green = green_list[i][j]
+    blue = blue_list[i][j]
+    return red, green, blue
+
+def dequant_dehaar(col_list):
+    height =len(col_list)
+    width = len(col_list[0])
+    # DE QUANTIZE
+    de_haar = decode_quantization(col_list, width, height)
+    # HAAR TRANSFORM DECODE
+    decoded_pixel_values = decode_haar_transform(de_haar, width, height)
+    return decoded_pixel_values
+
+
+def make_lists(decoded_pix_list):
+    height = len(decoded_pix_list)
+    width = len(decoded_pix_list[0])
+    red_list = []
+    green_list = []
+    blue_list = []
+    for i in range(0, height):
+        red_list.append([])
+        green_list.append([])
+        blue_list.append([])
+        for j in range(0, width):
+            val = decoded_pix_list[i][j]
+            col_set = num_to_rgb(val)
+            red_list[i].append(col_set[0])
+            green_list[i].append(col_set[1])
+            blue_list[i].append(col_set[2])
+    return red_list, green_list, blue_list
 
 def haar_transform(pixel_list, width, height):
     list_length = width * height
@@ -146,7 +205,7 @@ def d_code(average_list, diff_list, diff_list_index):
     return avg_list, diff_list
 
 
-con = 2
+con = 10
 
 
 def quantize(pixel_list, width, height):
@@ -264,8 +323,8 @@ def nwt_step(pixels, j):
 
 
 def rgb_to_num(rgb_value):
-    red = rgb_value[0]
-    green = rgb_value[1]
+    red = int(rgb_value[0])
+    green = int(rgb_value[1])
     blue = rgb_value[2]
     rgb_num = (red << 16) + (green << 8) + blue
     return rgb_num
