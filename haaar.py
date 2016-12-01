@@ -32,7 +32,7 @@ def main():
     pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
-    print pixels[6, 6]
+    print pixels[0, 39]
     width, height = coord[0], coord[1]                  #check this again!!!!!!! the height and width
     pixel_list = []
     # convert pixels tuple values and copy them into a 2d array
@@ -83,14 +83,17 @@ def main():
 
 
     # UNDO HAAR TRANSFORM
-    decoded_pixel_values = decode_haar_transform(de_haar, new_width, new_height)
+    decoded_pixel_value = decode_haar_transform(de_haar, new_width, new_height)
     # pretty_print(decoded_pixel_values, "AFTER ALL DECODING")
+
+    # REMOVE PADDING
+    decoded_pixel_values = remove_pad(decoded_pixel_value, width, height)
 
     # GET RGB VALUES BACK FROM INTEGERS
     rgb_list = []
-    for i in range(new_height):
+    for i in range(height):
         rgb_list.append([])
-        for j in range(new_width):
+        for j in range(width):
             rgb_list[i].append(num_to_rgb(decoded_pixel_values[i][j]))
     # pretty_print(rgb_array, "")
 
@@ -100,13 +103,19 @@ def main():
     pilimage.save('out.bmp')
 
 
-
+def remove_pad(pixel_list, width, height):
+    new_list = []
+    for i in range(0, height):
+        new_list.append([])
+        for j in range(0, width):
+            new_list[i].append(pixel_list[i][j])
+    return new_list
 
 def haar_transform(pixel_list, width, height):
     list_length = width * height
     print "LIST LENGTH IS ", list_length
 
-    pretty_print(pixel_list, "beginning list")
+    # pretty_print(pixel_list, "beginning list")
     row_transformed_pixel_list = []
     # wavelet transform for each row
     for row in pixel_list:
@@ -181,7 +190,7 @@ def d_code(average_list, diff_list, diff_list_index):
         diff_list.pop(0)
     return avg_list, diff_list
 
-con = 2
+con = 64
 
 def quantize(pixelList, width, height):
     for i in range(0, height):
