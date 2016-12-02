@@ -28,7 +28,7 @@ def num_to_rgb(rgb_num):
 
 
 def main():
-    picture = Image.open("box.bmp")
+    picture = Image.open("smallbox.bmp")
     pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
@@ -57,12 +57,12 @@ def main():
 
     # DO QUANTIZATION
 
-    # quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
+    quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
     # pretty_print(quantized_coefficient, "PIXEL VALUES THAT WILL BE ENCODED USING HUFFMAN")
 
 
     # DO ENCODING
-    root = variable_length_encode(transform_coefficient, new_width, new_height)
+    root = variable_length_encode(quantized_coefficient, new_width, new_height)
 
 
     # START DECODING
@@ -78,12 +78,12 @@ def main():
 
 
     # DEQUANTIZE
-    # de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
+    de_haar = decode_quantization(pix_vals_to_dequant, new_width, new_height)
     # pretty_print(de_haar, "AFTER DEQUANTIZE")
 
 
     # UNDO HAAR TRANSFORM
-    decoded_pixel_value = decode_haar_transform(pix_vals_to_dequant, new_width, new_height)
+    decoded_pixel_value = decode_haar_transform(de_haar, new_width, new_height)
     # pretty_print(decoded_pixel_values, "AFTER ALL DECODING")
 
     # REMOVE PADDING
@@ -190,25 +190,46 @@ def d_code(average_list, diff_list, diff_list_index):
         diff_list.pop(0)
     return avg_list, diff_list
 
-con = 1
 
-def quantize(pixelList, width, height):
-    for i in range(0, height):
-        for j in range(0, width):
-            if pixelList[i][j] < 0:
-                pixelList[i][j] = (pixelList[i][j] // con) + 1
-            elif pixelList[i][j] == 0:
-                pixelList[i][j] = pixelList[i][j]
-            else:
-                pixelList[i][j] = (pixelList[i][j] // con)
-    return pixelList
 
+con = 2
 
 def decode_quantization(pixelList, width, height):
     for i in range(height):
         for j in range(width):
-            pixelList[i][j] = pixelList[i][j] * con
+            if pixelList[i][j] < 0:
+                pixelList[i][j] = pixelList[i][j] * con
+            elif pixelList[i][j] == 0:
+                pixelList[i][j] = 0
+            else:
+                pixelList[i][j] = pixelList[i][j] * con
     return pixelList
+
+
+
+def quantize(pixelList, width, height):
+    for i in range(0, height):
+        for j in range(0, width):
+            pixelList[i][j] = pixelList[i][j] // con
+    return pixelList
+
+# def quantize(pixelList, width, height):
+#     for i in range(0, height):
+#         for j in range(0, width):
+#             if pixelList[i][j] < 0:
+#                 pixelList[i][j] = (pixelList[i][j] // con) + 1
+#             elif pixelList[i][j] == 0:
+#                 pixelList[i][j] = pixelList[i][j]
+#             else:
+#                 pixelList[i][j] = (pixelList[i][j] // con)
+#     return pixelList
+#
+#
+# def decode_quantization(pixelList, width, height):
+#     for i in range(height):
+#         for j in range(width):
+#             pixelList[i][j] = pixelList[i][j] * con
+#     return pixelList
 
 
 def variable_length_encode(pixel_list, width, height):
