@@ -6,12 +6,11 @@ import math
 
 
 # TODO
-# trim padded area
 # put try catch around file opens
 
 
 def main():
-    picture = Image.open("smallbox.bmp")
+    picture = Image.open("boxes.bmp")
     pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
@@ -20,6 +19,15 @@ def main():
     print pixels[0,0][1]
     width, height = coord[0], coord[1]  # check this again!!!!!!! the height and width
     color_list = []
+
+    data_list = []
+    for i in xrange(0, height):
+        data_list.append([])
+        for j in xrange(0, width):
+            value = pixels[j, i]
+            data_list[i].append(value)
+    pretty_print(data_list, "ORIGINAL PIXEL VALUES")
+
 
     # convert each color pixels, copy them into a 2d array, haar transform and quantize
     for x in xrange(0, pixel_size):
@@ -32,11 +40,12 @@ def main():
         quantized_pix = process_col(pixel_list, width, height)
         color_list.append(quantized_pix)
 
+
     # convert values into one for each pixel and encode
     assert len(color_list) is 3
     new_height = len(color_list[0])
     new_width = len(color_list[0][0])
-    # pretty_print(color_list[0], "example")
+    # pretty_print(color_list[1], "red list after quantization")
     val_to_encode = []
     rgb_list = []
     for i in range(0, new_height):
@@ -47,12 +56,12 @@ def main():
             rgb_list.append(color_list[2][i][j])
             val_to_encode[i].append(rgb_to_num(rgb_list))
             rgb_list = []
-    # pretty_print(val_to_encode, "After quantization and layering")
+    # pretty_print(val_to_encode, "putting them together")
 
     root = variable_length_encode(val_to_encode, new_width, new_height)
 
     # DECODE
-    decode_file(root, new_width, new_height)
+    decode_file(root, new_width, new_height, width, height)
 
 
 
@@ -74,20 +83,36 @@ def process_col(pixel_list, width, height):
     return quantized_coefficient
 
 
-def decode_file(root, new_width, new_height):
+def decode_file(root, width, height, old_width, old_height):
     with open("encodeoutput.bmp", "r") as enc_file:
         encoded_str = enc_file.read()
         print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
-        pix_val_to_dequant = decode_driver(encoded_str, root, new_height, new_width)
+        pix_val_to_dequant = decode_driver(encoded_str, root, height, width)
+
+    # pretty_print(pix_val_to_dequant, "AFTER DECODING")
 
     red_list, green_list, blue_list = make_lists(pix_val_to_dequant)
+
+
 
     new_red_list = dequant_dehaar(red_list)
     new_green_list = dequant_dehaar(green_list)
     new_blue_list = dequant_dehaar(blue_list)
 
 
-    rgb_list = make_pixel_arr(new_red_list, new_green_list, new_blue_list)
+
+
+    new_red_lis = remove_pad(new_red_list, old_width, old_height)
+    new_green_lis = remove_pad(new_green_list, old_width, old_height)
+    new_blue_lis = remove_pad(new_blue_list, old_width, old_height)
+
+    # pretty_print(new_red_lis, "")
+    # pretty_print(new_green_lis, "GREEN LIST")
+    # pretty_print(new_blue_lis, "BLUE LIST")
+
+    rgb_list = make_pixel_arr(new_red_lis, new_green_lis, new_blue_lis)
+
+    pretty_print(rgb_list, "DECODED PIXEL VALUES")
 
     # SHOW IMAGE
     img_array = np.array(rgb_list, np.uint8)
@@ -107,10 +132,17 @@ def make_pixel_arr(red_list, green_list, blue_list):
 
 
 def make_set(red_list, green_list, blue_list, i, j):
-    red = red_list[i][j]
-    green = green_list[i][j]
-    blue = blue_list[i][j]
+    red = check_range(int(red_list[i][j]))
+    green = check_range(int(green_list[i][j]))
+    blue = check_range(int(blue_list[i][j]))
     return red, green, blue
+
+def check_range(val):
+    if val > 255:
+        val = 255
+    elif val < 0:
+        val = 0
+    return val
 
 def dequant_dehaar(col_list):
     height =len(col_list)
@@ -134,11 +166,21 @@ def make_lists(decoded_pix_list):
         blue_list.append([])
         for j in range(0, width):
             val = decoded_pix_list[i][j]
-            col_set = num_to_rgb(val)
-            red_list[i].append(col_set[0])
-            green_list[i].append(col_set[1])
-            blue_list[i].append(col_set[2])
+            color_set = num_to_rgb(val)
+            red_list[i].append(color_set[0])
+            green_list[i].append(color_set[1])
+            blue_list[i].append(color_set[2])
     return red_list, green_list, blue_list
+
+
+def remove_pad(pixel_list, width, height):
+    new_list = []
+    for i in range(0, height):
+        new_list.append([])
+        for j in range(0, width):
+            new_list[i].append(pixel_list[i][j])
+    return new_list
+
 
 def haar_transform(pixel_list, width, height):
     list_length = width * height
@@ -205,7 +247,8 @@ def d_code(average_list, diff_list, diff_list_index):
     return avg_list, diff_list
 
 
-con = 10
+con = 1
+
 
 
 def quantize(pixel_list, width, height):
@@ -322,18 +365,41 @@ def nwt_step(pixels, j):
     return b
 
 
+NUMBER_OF_BITS_TO_SHIFT = 9
+NUMBER_MASK = (1 << NUMBER_OF_BITS_TO_SHIFT) - 1
+NEGATIVE_RANGE = 1 << (NUMBER_OF_BITS_TO_SHIFT - 1)
+
+
+
+
+def convert_neg_number_if_needed(number):
+    if number < 0:
+        number = NEGATIVE_RANGE + abs(number)
+    return number
+
+
+def convert_neg_back_if_needed(number):
+    if number > NEGATIVE_RANGE:
+        number = -(number - NEGATIVE_RANGE)
+    return number
+
+
 def rgb_to_num(rgb_value):
-    red = int(rgb_value[0])
-    green = int(rgb_value[1])
-    blue = rgb_value[2]
-    rgb_num = (red << 16) + (green << 8) + blue
+    red = int(convert_neg_number_if_needed(rgb_value[0]))
+    green = int(convert_neg_number_if_needed(rgb_value[1]))
+    blue = int(convert_neg_number_if_needed(rgb_value[2]))
+    rgb_num = (red << (NUMBER_OF_BITS_TO_SHIFT * 2)) | (green << NUMBER_OF_BITS_TO_SHIFT) | blue
     return rgb_num
 
 
 def num_to_rgb(rgb_num):
-    red = (int(rgb_num) >> 16) & 255
-    green = (int(rgb_num) >> 8) & 255
-    blue = int(rgb_num) & 255
+    red = convert_neg_back_if_needed((int(rgb_num) >> (NUMBER_OF_BITS_TO_SHIFT * 2)) & NUMBER_MASK)
+
+    green = convert_neg_back_if_needed((int(rgb_num) >> NUMBER_OF_BITS_TO_SHIFT) & NUMBER_MASK)
+
+    blue = convert_neg_back_if_needed(int(rgb_num) & NUMBER_MASK)
+
     return red, green, blue
 
 main()
+
