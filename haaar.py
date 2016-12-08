@@ -4,31 +4,26 @@ from hufman import encode_driver, decode_driver
 import numpy as np
 import math
 
-
-# TODO
-# put try catch around file opens
+QUANTIZATION_CON = 10
+NUMBER_OF_BITS_TO_SHIFT = 9
+NUMBER_MASK = (1 << NUMBER_OF_BITS_TO_SHIFT) - 1
+NEGATIVE_RANGE = 1 << (NUMBER_OF_BITS_TO_SHIFT - 1)
 
 
 def main():
-    picture = Image.open("boxes.bmp")
+    picture = Image.open("smallbox.bmp")
     pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
     pixel_size = len(pixels[0, 0])
-    print pixels[6, 6][0]
-    print pixels[0,0][1]
-    width, height = coord[0], coord[1]  # check this again!!!!!!! the height and width
+    width, height = coord[0], coord[1]
     color_list = []
-
     data_list = []
     for i in xrange(0, height):
         data_list.append([])
         for j in xrange(0, width):
             value = pixels[j, i]
             data_list[i].append(value)
-    pretty_print(data_list, "ORIGINAL PIXEL VALUES")
-
-
     # convert each color pixels, copy them into a 2d array, haar transform and quantize
     for x in xrange(0, pixel_size):
         pixel_list = []
@@ -37,15 +32,12 @@ def main():
             for j in xrange(0, width):
                 value = pixels[j, i][x]
                 pixel_list[i].append(value)
-        quantized_pix = process_col(pixel_list, width, height)
+        quantized_pix = process_component(pixel_list, width, height)
         color_list.append(quantized_pix)
-
-
-    # convert values into one for each pixel and encode
+    # combine values back into one for each pixel and encode
     assert len(color_list) is 3
     new_height = len(color_list[0])
     new_width = len(color_list[0][0])
-    # pretty_print(color_list[1], "red list after quantization")
     val_to_encode = []
     rgb_list = []
     for i in range(0, new_height):
@@ -56,31 +48,9 @@ def main():
             rgb_list.append(color_list[2][i][j])
             val_to_encode[i].append(rgb_to_num(rgb_list))
             rgb_list = []
-    # pretty_print(val_to_encode, "putting them together")
-
     root = variable_length_encode(val_to_encode, new_width, new_height)
-
     # DECODE
     decode_file(root, new_width, new_height, width, height)
-
-
-
-
-
-def process_col(pixel_list, width, height):
-    # pretty_print(pixel_list, "AT THE BEGINNING")
-
-    # PAD LIST IF NECESSARY
-    padded_pixel_list, new_width, new_height = pad_dimensions(pixel_list, width, height)
-    assert new_width == new_height
-
-    # HAAR TRANSFORM
-    transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
-
-    # QUANTIZATION
-    quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
-
-    return quantized_coefficient
 
 
 def decode_file(root, width, height, old_width, old_height):
@@ -88,36 +58,25 @@ def decode_file(root, width, height, old_width, old_height):
         encoded_str = enc_file.read()
         print "SIZE OF STRING TO DECODE IS ", len(encoded_str)
         pix_val_to_dequant = decode_driver(encoded_str, root, height, width)
-
-    # pretty_print(pix_val_to_dequant, "AFTER DECODING")
-
     red_list, green_list, blue_list = make_lists(pix_val_to_dequant)
-
-
-
-    new_red_list = dequant_dehaar(red_list)
-    new_green_list = dequant_dehaar(green_list)
-    new_blue_list = dequant_dehaar(blue_list)
-
-
-
-
-    new_red_lis = remove_pad(new_red_list, old_width, old_height)
-    new_green_lis = remove_pad(new_green_list, old_width, old_height)
-    new_blue_lis = remove_pad(new_blue_list, old_width, old_height)
-
-    # pretty_print(new_red_lis, "")
-    # pretty_print(new_green_lis, "GREEN LIST")
-    # pretty_print(new_blue_lis, "BLUE LIST")
-
-    rgb_list = make_pixel_arr(new_red_lis, new_green_lis, new_blue_lis)
-
-    pretty_print(rgb_list, "DECODED PIXEL VALUES")
-
+    new_red_list = remove_pad(dequant_dehaar(red_list), old_width, old_height)
+    new_green_list = remove_pad(dequant_dehaar(green_list), old_width, old_height)
+    new_blue_list = remove_pad(dequant_dehaar(blue_list), old_width, old_height)
+    rgb_list = make_pixel_arr(new_red_list, new_green_list, new_blue_list)
+    # pretty_print(rgb_list, "DECODED PIXEL VALUES")
     # SHOW IMAGE
     img_array = np.array(rgb_list, np.uint8)
     pil_image = Image.fromarray(img_array)
     pil_image.save('out.bmp')
+
+
+def process_component(pixel_list, width, height):
+    # pretty_print(pixel_list, "AT THE BEGINNING")
+    padded_pixel_list, new_width, new_height = pad_if_necessary(pixel_list, width, height)
+    assert new_width == new_height
+    transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
+    quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
+    return quantized_coefficient
 
 
 def make_pixel_arr(red_list, green_list, blue_list):
@@ -137,6 +96,7 @@ def make_set(red_list, green_list, blue_list, i, j):
     blue = check_range(int(blue_list[i][j]))
     return red, green, blue
 
+
 def check_range(val):
     if val > 255:
         val = 255
@@ -144,8 +104,9 @@ def check_range(val):
         val = 0
     return val
 
+
 def dequant_dehaar(col_list):
-    height =len(col_list)
+    height = len(col_list)
     width = len(col_list[0])
     # DE QUANTIZE
     de_haar = decode_quantization(col_list, width, height)
@@ -185,8 +146,6 @@ def remove_pad(pixel_list, width, height):
 def haar_transform(pixel_list, width, height):
     list_length = width * height
     print "LIST LENGTH IS ", list_length
-
-    #pretty_print(pixel_list, "beginning list")
     row_transformed_pixel_list = []
     # wavelet transform for each row
     for row in pixel_list:
@@ -247,26 +206,22 @@ def d_code(average_list, diff_list, diff_list_index):
     return avg_list, diff_list
 
 
-con = 1
-
-
-
 def quantize(pixel_list, width, height):
     for i in range(0, height):
         for j in range(0, width):
             if pixel_list[i][j] < 0:
-                pixel_list[i][j] = (pixel_list[i][j] // con) + 1
+                pixel_list[i][j] = (pixel_list[i][j] // QUANTIZATION_CON) + 1
             elif pixel_list[i][j] == 0:
                 pixel_list[i][j] = pixel_list[i][j]
             else:
-                pixel_list[i][j] = (pixel_list[i][j] // con)
+                pixel_list[i][j] = (pixel_list[i][j] // QUANTIZATION_CON)
     return pixel_list
 
 
 def decode_quantization(pixel_list, width, height):
     for i in range(height):
         for j in range(width):
-            pixel_list[i][j] = pixel_list[i][j] * con
+            pixel_list[i][j] = pixel_list[i][j] * QUANTIZATION_CON
     return pixel_list
 
 
@@ -318,7 +273,7 @@ def pretty_print(pixel_list, print_str):
     print "\n" * 6
 
 
-def pad_dimensions(pixel_list, width, height):
+def pad_if_necessary(pixel_list, width, height):
     changed = False
     width_next_power = width
     height_next_power = height
@@ -342,34 +297,6 @@ def pad_dimensions(pixel_list, width, height):
         return pixel_list, height_next_power, width_next_power
     else:
         return pixel_list, height_next_power, width_next_power
-
-
-def normalized_haar_transform(pixel_list):
-    n = len(pixel_list)
-    root = int(math.sqrt(n))
-    for i in range(0, n):
-        pixel_list[i] /= root
-    while n >= 2:
-        pixel_list = nwt_step(pixel_list, n)
-        n = int(n / 2)
-    return pixel_list
-
-
-def nwt_step(pixels, j):
-    index = int(j / 2)
-    root = math.sqrt(2)
-    b = [0.0 for i in pixels]
-    for i in range(0, index):
-        b[i] = (pixels[(2 * i) - 1] + pixels[2 * i]) / root
-        b[int(j / 2 + i)] = (pixels[(2 * i) - 1] - pixels[2 * i]) / root
-    return b
-
-
-NUMBER_OF_BITS_TO_SHIFT = 9
-NUMBER_MASK = (1 << NUMBER_OF_BITS_TO_SHIFT) - 1
-NEGATIVE_RANGE = 1 << (NUMBER_OF_BITS_TO_SHIFT - 1)
-
-
 
 
 def convert_neg_number_if_needed(number):
@@ -401,5 +328,6 @@ def num_to_rgb(rgb_num):
 
     return red, green, blue
 
-main()
 
+if __name__ == "__main__":
+    main()
