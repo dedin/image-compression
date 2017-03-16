@@ -2,16 +2,16 @@ from __future__ import division
 from PIL import Image
 from hufman import encode_driver, decode_driver
 import numpy as np
-import math
 
-QUANTIZATION_CON = 10
+
+QUANTIZATION_CON = 50
 NUMBER_OF_BITS_TO_SHIFT = 9
 NUMBER_MASK = (1 << NUMBER_OF_BITS_TO_SHIFT) - 1
 NEGATIVE_RANGE = 1 << (NUMBER_OF_BITS_TO_SHIFT - 1)
 
 
 def main():
-    picture = Image.open("smallbox.bmp")
+    picture = Image.open("bird.jpeg")
     pixels = picture.load()
     coord = picture.size
     print "coord is ", coord
@@ -24,7 +24,8 @@ def main():
         for j in xrange(0, width):
             value = pixels[j, i]
             data_list[i].append(value)
-    # convert each color pixels, copy them into a 2d array, haar transform and quantize
+    # Extract each color component from each pixel into separate arrays
+    # process each component array - do haar transform and quantize
     for x in xrange(0, pixel_size):
         pixel_list = []
         for i in xrange(0, height):
@@ -34,7 +35,7 @@ def main():
                 pixel_list[i].append(value)
         quantized_pix = process_component(pixel_list, width, height)
         color_list.append(quantized_pix)
-    # combine values back into one for each pixel and encode
+    # combine pixel components back into one for each pixel and encode to file
     assert len(color_list) is 3
     new_height = len(color_list[0])
     new_width = len(color_list[0][0])
@@ -49,10 +50,13 @@ def main():
             val_to_encode[i].append(rgb_to_num(rgb_list))
             rgb_list = []
     root = variable_length_encode(val_to_encode, new_width, new_height)
-    # DECODE
+    # DECODE file back to pixel values
     decode_file(root, new_width, new_height, width, height)
 
 
+# Function to decode the file back to pixel values
+# Parameters : root of the huffman tree
+#              width and height before padding and after padding
 def decode_file(root, width, height, old_width, old_height):
     with open("encodeoutput.bmp", "r") as enc_file:
         encoded_str = enc_file.read()
@@ -63,22 +67,27 @@ def decode_file(root, width, height, old_width, old_height):
     new_green_list = remove_pad(dequant_dehaar(green_list), old_width, old_height)
     new_blue_list = remove_pad(dequant_dehaar(blue_list), old_width, old_height)
     rgb_list = make_pixel_arr(new_red_list, new_green_list, new_blue_list)
-    # pretty_print(rgb_list, "DECODED PIXEL VALUES")
-    # SHOW IMAGE
+    # Show the Image from pixel values
     img_array = np.array(rgb_list, np.uint8)
     pil_image = Image.fromarray(img_array)
     pil_image.save('out.bmp')
 
 
+# Function to run Haar transform and quantization on each component array
+# Parameters : each component array, the width and height pf the array
+# Returns a quantized and Haar transformed pixel array
 def process_component(pixel_list, width, height):
-    # pretty_print(pixel_list, "AT THE BEGINNING")
     padded_pixel_list, new_width, new_height = pad_if_necessary(pixel_list, width, height)
+    print new_width, new_height
     assert new_width == new_height
     transform_coefficient = haar_transform(padded_pixel_list, new_width, new_height)
     quantized_coefficient = quantize(transform_coefficient, new_width, new_height)
     return quantized_coefficient
 
 
+# Function to combine the 3 component arrays into one pixel array
+# parameters : Each component array of red, gree, and blue commponent
+# Returns a combined array of pixel values
 def make_pixel_arr(red_list, green_list, blue_list):
     height = len(red_list)
     width = len(red_list[0])
@@ -90,6 +99,8 @@ def make_pixel_arr(red_list, green_list, blue_list):
     return rgb_list
 
 
+# Helper function to make a python set of pixel values
+# Used by make_pixel_arr()
 def make_set(red_list, green_list, blue_list, i, j):
     red = check_range(int(red_list[i][j]))
     green = check_range(int(green_list[i][j]))
@@ -97,6 +108,7 @@ def make_set(red_list, green_list, blue_list, i, j):
     return red, green, blue
 
 
+# Function to check and adjust the value of a pixel
 def check_range(val):
     if val > 255:
         val = 255
@@ -105,6 +117,10 @@ def check_range(val):
     return val
 
 
+# Function to perform decoding Haar transform and quantization
+# Parameters : A 2 dimensional array which is essentially the pixel array for
+#              each color component
+# Returns decoded pixel values
 def dequant_dehaar(col_list):
     height = len(col_list)
     width = len(col_list[0])
@@ -115,6 +131,10 @@ def dequant_dehaar(col_list):
     return decoded_pixel_values
 
 
+# Function to split the huffman decoded values into the 3 color components
+# arrays of red, green and blue.
+# Parameters : Huffman decoded array of values
+# Returns 3 component array of red, green and blue
 def make_lists(decoded_pix_list):
     height = len(decoded_pix_list)
     width = len(decoded_pix_list[0])
@@ -134,6 +154,11 @@ def make_lists(decoded_pix_list):
     return red_list, green_list, blue_list
 
 
+# Function to remove the padding applied to the pixel array
+# before Haar transform
+# Parameters : A 2 dimensional array of numbers corresponding to
+#              each color component array, the width and the height
+# return a 2 dimensional array where pad has been removed if necessary
 def remove_pad(pixel_list, width, height):
     new_list = []
     for i in range(0, height):
@@ -143,6 +168,10 @@ def remove_pad(pixel_list, width, height):
     return new_list
 
 
+# Function to perform Haar transform on a 2 dimenional pixel array
+# Parameters : A 2 dimensional array of pixel values that corresponds to
+#             each color component array, the width and the height
+# Returns a 2 dimensional array of transform coefficients
 def haar_transform(pixel_list, width, height):
     list_length = width * height
     print "LIST LENGTH IS ", list_length
@@ -162,6 +191,11 @@ def haar_transform(pixel_list, width, height):
     return column_transformed_pixel_list[0]
 
 
+# Function to decode the Haar transform
+# Parameters : A 2 dimensional array of de-quantized values corresponding
+#              to each color component, the width and the height
+# Returns the resulting 2 dimensional array that is a result of decoding
+# Haar transform
 def decode_haar_transform(coded_list, width, height):
     col_re_arranged_to_row = np.array(coded_list)
     array_2 = []
@@ -175,13 +209,11 @@ def decode_haar_transform(coded_list, width, height):
     return final_decode
 
 
+# Helper Function for decode_haar_transform() to convert a row or column at
+# of one average and multiple differences to the original values
+# Parameters : A list of average and differences. Total size must be a power of 2
+# Returns a decoded list of values
 def de_code(row_to_decode):
-    """"Converts from a row of one average and multiple differences to the original values
-    Parameters
-    ----------
-       :param row_to_decode:
-       A list containing an average followed by a list of differences.  The total size must be a power of 2.
-    """
     average_list = []
     width = len(row_to_decode)
     diff = row_to_decode[1] / 2
@@ -196,6 +228,7 @@ def de_code(row_to_decode):
     return average_list
 
 
+# Helper function for de_code()
 def d_code(average_list, diff_list, diff_list_index):
     avg_list = []
     for avg in average_list:
@@ -206,6 +239,10 @@ def d_code(average_list, diff_list, diff_list_index):
     return avg_list, diff_list
 
 
+# Function to perform quantization on each pixel array
+# Parameters : A 2 dimensional array of pixel array corresponding to
+#              each color component, the width and the height
+# Returns a quantized 2 dimensional array
 def quantize(pixel_list, width, height):
     for i in range(0, height):
         for j in range(0, width):
@@ -218,6 +255,9 @@ def quantize(pixel_list, width, height):
     return pixel_list
 
 
+# Function to decode quantization in each pixel array of color components
+# Parameters : A 2 dimensional array of values, the width and the height
+# Returns a 2 dimensional array of de-quantized values
 def decode_quantization(pixel_list, width, height):
     for i in range(height):
         for j in range(width):
@@ -225,11 +265,17 @@ def decode_quantization(pixel_list, width, height):
     return pixel_list
 
 
+# Function to perform variable length encoding of 2 dimensional pixel array to file using Huffman
+# Parameters : A 2 dimensional array of values to be encoded to file.
+# Returns root from the Huffman tree
 def variable_length_encode(pixel_list, width, height):
     root = encode_driver(pixel_array=pixel_list, width=width, height=height)
     return root
 
 
+# Helper function to perform wavelet transform of each row or column
+# Parameter : The row or column to perform wavelet transform on
+# Returns a list of transform coefficients
 def wavelet_transform(row):
     difference_list = []
     average_list, difference_list = haar_average(row, difference_list)
@@ -240,6 +286,9 @@ def wavelet_transform(row):
     return difference_list
 
 
+# helper function for wavelet_transform() to get one average followed by set of
+# differences for a row or column
+# Parameters : A list corresponding to one average 
 def haar_average(pixel_list, diff_list):
     avg_list = []
     list_length = len(pixel_list)
@@ -274,6 +323,7 @@ def pretty_print(pixel_list, print_str):
 
 
 def pad_if_necessary(pixel_list, width, height):
+    print "PADDING"
     changed = False
     width_next_power = width
     height_next_power = height
@@ -331,3 +381,4 @@ def num_to_rgb(rgb_num):
 
 if __name__ == "__main__":
     main()
+
