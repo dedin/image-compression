@@ -29,42 +29,43 @@ def encode_driver(pixel_array, width, height):
     return root
 
 
+# This following functions main, decoder() and write_to_file() are used to
+# test the hufman implementation by itself
+def main():
+    words = "the quick brown fox jumps over the lazy dog"
+    frequency_dict = get_frequencies(words)
+    root = make_huffman_tree(frequency_dict)
+    huffman_codes = {}
+    get_huffman_codes(root, huffman_codes, "")
+    write_to_file(words, huffman_codes)
+    print "NEW SIZE OF FILE IS: ", os.stat(".bmp").st_size
+    print "ENCODING IS DONE!!!"
+    decoder(root)
 
-# def main():
-#     words = "the quick brown fox jumps over the lazy dog"
-#     frequency_dict = get_frequencies(words)
-#     root = make_huffman_tree(frequency_dict)
-#     huffman_codes = {}
-#     get_huffman_codes(root, huffman_codes, "")
-#     write_to_file(words, huffman_codes)
-#     print "NEW SIZE OF FILE IS: ", os.stat(".bmp").st_size
-#     print "ENCODING IS DONE!!!"
-#     decoder(root)
 
 
+def decoder(root):
+    with open("output.bmp", "r") as enc_file:
+        encoded_str = enc_file.read().replace("\n", "")
+        decode_driver(encoded_str, root, 1, 1)
 
-# def decoder(root):
-#     with open("output.bmp", "r") as enc_file:
-#         encoded_str = enc_file.read().replace("\n", "")
-#         decode_driver(encoded_str, root, 1, 1)
-#
-# def write_to_file(words, huffman_codes_dict):
-#     with open("output.bmp", "w") as out_file:
-#         tempbyte = 0
-#         temppos = 0
-#         for char in words:
-#                 code = huffman_codes_dict[char]
-#                 for ch in code:
-#                     if ch == '1':
-#                         temp = 1 << temppos
-#                         tempbyte = temp | tempbyte
-#                     temppos += 1
-#                     if temppos == 8:
-#                         temppos = 0
-#                         out_file.write(chr(tempbyte))
-#                         tempbyte = 0
-#         if temppos > 0:
-#             out_file.write(chr(tempbyte))
+def write_to_file(words, huffman_codes_dict):
+    with open("output.bmp", "w") as out_file:
+        tempbyte = 0
+        temppos = 0
+        for char in words:
+                code = huffman_codes_dict[char]
+                for ch in code:
+                    if ch == '1':
+                        temp = 1 << temppos
+                        tempbyte = temp | tempbyte
+                    temppos += 1
+                    if temppos == 8:
+                        temppos = 0
+                        out_file.write(chr(tempbyte))
+                        tempbyte = 0
+        if temppos > 0:
+            out_file.write(chr(tempbyte))
 
 
 def get_frequencies(input_array):
@@ -106,7 +107,6 @@ def get_huffman_codes(node, dict, curr_bits):
 
 
 def encode_bits_to_file(pixel_list, huffman_codes_dict, width, height):
-    # size of file with dictionary or tree in header?
     with open("encodeoutput.bmp", "w") as out_file:
         tempbyte = 0
         temppos = 0
