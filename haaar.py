@@ -25,7 +25,7 @@ def main():
             value = pixels[j, i]
             data_list[i].append(value)
     # Extract each color component from each pixel into separate arrays
-    # process each component array - do haar transform and quantize
+    # process each component array - do haar transform and quantize.
     for x in xrange(0, pixel_size):
         pixel_list = []
         for i in xrange(0, height):
