@@ -56,7 +56,7 @@ def main():
 
 # Function to decode the file back to pixel values
 # Parameters : root of the huffman tree
-#              width and height before padding and after padding.
+#              width and height before padding and after padding
 def decode_file(root, width, height, old_width, old_height):
     with open("encodeoutput.bmp", "r") as enc_file:
         encoded_str = enc_file.read()
