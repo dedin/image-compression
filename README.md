@@ -1,3 +1,3 @@
 # image-compression
 
-A comparison of how Haar transform, the simplest wavelet transform compresses different image types. 
+Compresses images of various types using the Haar transform, the simplest wavelet transform.
