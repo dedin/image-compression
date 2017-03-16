@@ -30,7 +30,7 @@ def encode_driver(pixel_array, width, height):
 
 
 # This following functions main, decoder() and write_to_file() are used to
-# test the hufman implementation by itself
+# test the hufman implementation by itself.
 def main():
     words = "the quick brown fox jumps over the lazy dog"
     frequency_dict = get_frequencies(words)

@@ -171,7 +171,7 @@ def remove_pad(pixel_list, width, height):
 # Function to perform Haar transform on a 2 dimenional pixel array
 # Parameters : A 2 dimensional array of pixel values that corresponds to
 #             each color component array, the width and the height
-# Returns a 2 dimensional array of transform coefficients
+# Returns a 2 dimensional array of transform coefficients.
 def haar_transform(pixel_list, width, height):
     list_length = width * height
     print "LIST LENGTH IS ", list_length
